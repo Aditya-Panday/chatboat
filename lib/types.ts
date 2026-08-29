@@ -1,3 +1,5 @@
+import type { ChatLifecycle, WidgetEventMessage } from "@/lib/widget-protocol";
+
 export type PageType =
   | "HOME"
   | "PDP"
@@ -81,6 +83,7 @@ export type HostToWidgetMessage =
         context: WebsiteContext;
         website: string;
         viewport: HostViewport;
+        parentOrigin: string;
       };
     }
   | {
@@ -108,6 +111,26 @@ export type HostToWidgetMessage =
   | {
       source: "coversall-chat-host";
       type: "close";
+    }
+  | {
+      source: "coversall-chat-host";
+      type: "WIDGET_INITIATE_CHAT";
+    }
+  | {
+      source: "coversall-chat-host";
+      type: "WIDGET_CLOSE_CHAT";
+    }
+  | {
+      source: "coversall-chat-host";
+      type: "WIDGET_HIDE_CHAT";
+    }
+  | {
+      source: "coversall-chat-host";
+      type: "WIDGET_SHOW_CHAT";
+    }
+  | {
+      source: "coversall-chat-host";
+      type: "WIDGET_END_CHAT";
     };
 
 export type WidgetToHostMessage =
@@ -120,9 +143,11 @@ export type WidgetToHostMessage =
       type: "state";
       payload: {
         open: boolean;
+        lifecycle: ChatLifecycle;
       };
     }
   | {
       source: "coversall-chat";
       type: "requestContext";
-    };
+    }
+  | WidgetEventMessage;

@@ -58,22 +58,104 @@ If you still see rate-limit errors after many test messages, wait for the daily 
 6. Refreshes context on navigation (`popstate`, SPA `pushState`/`replaceState`, hash changes).
 7. Before each chat message, the widget requests the latest parent context again.
 
-## Host API
+## Public JavaScript SDK
+
+After loading `widget.js`, the parent page can control the widget through `window.widget`:
+
+```html
+<script
+  src="http://localhost:3001/widget.js"
+  data-website="coversandall"
+></script>
+```
 
 ```js
-window.CoversAllChat.setContext({
+// Open the widget (same as clicking the launcher)
+window.widget.initiateChat();
+
+// Minimize — preserves the current conversation
+window.widget.closeChat();
+
+// Hide immediately — no confirmation UI, conversation preserved
+window.widget.hideChat();
+
+// Show again after hideChat()
+window.widget.showChat();
+
+// End conversation — clears messages and returns to Welcome Screen
+window.widget.endChat();
+
+// Check if the panel is currently visible
+window.widget.isOpen();
+```
+
+### closeChat vs hideChat vs endChat
+
+| Method | UI | Conversation |
+|--------|----|--------------|
+| `closeChat()` | Minimizes to launcher (same as **Close Chat** in the X menu) | Preserved |
+| `hideChat()` | Hides the entire widget immediately (no confirmation) | Preserved |
+| `endChat()` | Returns to Welcome Screen | Cleared |
+
+### Events
+
+```js
+window.widget.on("widget_ready", ({ visitorId }) => {
+  console.log("Widget ready", visitorId);
+});
+
+window.widget.on("widget_opened", (data) => {
+  console.log("Widget opened", data);
+});
+
+window.widget.on("widget_closed", (data) => {
+  console.log("Widget closed", data);
+});
+
+window.widget.on("chat_started", (data) => {
+  console.log("Chat started", data);
+});
+
+window.widget.on("chat_ended", (data) => {
+  console.log("Chat ended", data);
+});
+
+window.widget.on("agent_requested", (data) => {
+  console.log("Agent requested", data);
+});
+
+// Remove a listener
+window.widget.off("chat_started", myCallback);
+```
+
+Supported events: `widget_ready`, `widget_opened`, `widget_closed`, `chat_started`, `chat_ended`, `agent_requested`.
+
+Commands called before the iframe is ready are queued and sent automatically once the widget loads.
+
+### Legacy API
+
+`window.CoversAllChat` remains available for backward compatibility:
+
+```js
+window.CoversAllChat.open();   // → widget.initiateChat()
+window.CoversAllChat.close();  // → widget.closeChat()
+window.CoversAllChat.setContext({ productId: "SKU-123" });
+window.CoversAllChat.track({ event: "PRODUCT_VIEWED" });
+```
+
+## Host context API
+
+```js
+window.widget.setContext({
   productId: "CVA-SEC-001",
   productName: "Outdoor Sectional Couch Cover",
   pageType: "PDP",
 });
 
-window.CoversAllChat.track({
+window.widget.track({
   event: "PRODUCT_VIEWED",
   data: { productId: "CVA-SEC-001" },
 });
-
-window.CoversAllChat.open();
-window.CoversAllChat.close();
 ```
 
 Optional page markup the loader auto-detects:

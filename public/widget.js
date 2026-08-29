@@ -112,9 +112,13 @@
           result.description = result.description || item.description;
 
           if (item.offers) {
-            var offers = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+            var offers = Array.isArray(item.offers)
+              ? item.offers[0]
+              : item.offers;
             if (offers && offers.price) {
-              var currency = offers.priceCurrency ? offers.priceCurrency + " " : "";
+              var currency = offers.priceCurrency
+                ? offers.priceCurrency + " "
+                : "";
               result.price = result.price || currency + offers.price;
             }
           }
@@ -130,7 +134,7 @@
   function readPrice() {
     var selectors = [
       '[itemprop="price"]',
-      '[data-product-price]',
+      "[data-product-price]",
       ".price",
       ".product-price",
       ".product__price",
@@ -176,8 +180,10 @@
     var parts = ["Visitor is on a " + pageType + " page."];
 
     if (signals.heading) parts.push("Main heading: " + signals.heading + ".");
-    if (product.productName) parts.push("Product: " + product.productName + ".");
-    if (product.productId) parts.push("Product ID/SKU: " + product.productId + ".");
+    if (product.productName)
+      parts.push("Product: " + product.productName + ".");
+    if (product.productId)
+      parts.push("Product ID/SKU: " + product.productId + ".");
     if (signals.price || product.price) {
       parts.push("Visible price: " + (signals.price || product.price) + ".");
     }
@@ -188,8 +194,10 @@
           ".",
       );
     }
-    if (signals.breadcrumbs) parts.push("Breadcrumbs: " + signals.breadcrumbs + ".");
-    if (signals.cartItems) parts.push("Cart items visible: " + signals.cartItems + ".");
+    if (signals.breadcrumbs)
+      parts.push("Breadcrumbs: " + signals.breadcrumbs + ".");
+    if (signals.cartItems)
+      parts.push("Cart items visible: " + signals.cartItems + ".");
 
     return parts.join(" ");
   }
@@ -250,7 +258,8 @@
   }
 
   function getViewport() {
-    var width = window.innerWidth || document.documentElement.clientWidth || 1024;
+    var width =
+      window.innerWidth || document.documentElement.clientWidth || 1024;
     var height =
       (window.visualViewport && window.visualViewport.height) ||
       window.innerHeight ||
@@ -285,27 +294,21 @@
     };
   }
 
-  function applyIframeSize(open) {
-    var viewport = getViewport();
-    var size = computeIframeSize(open, viewport);
-    iframe.style.width = size.width + "px";
-    iframe.style.height = size.height + "px";
-    post("viewport", viewport);
-  }
-
   var visitorId = getVisitorId();
   var context = collectContext();
   var iframeReady = false;
   var widgetOpen = false;
-  var queue = [];
+  var widgetHidden = false;
+  var messageQueue = [];
+  var commandQueue = [];
+  var eventListeners = Object.create(null);
 
   var iframe = document.createElement("iframe");
   iframe.id = IFRAME_ID;
   iframe.title = "Covers&All customer support chat";
   iframe.setAttribute("aria-label", "Covers&All chat widget");
   iframe.allow = "clipboard-write";
-  iframe.src =
-    widgetOrigin + "/widget?website=" + encodeURIComponent(website);
+  iframe.src = widgetOrigin + "/widget?website=" + encodeURIComponent(website);
   iframe.setAttribute(
     "style",
     [
@@ -321,24 +324,82 @@
     ].join(";"),
   );
 
-  function post(type, payload) {
-    var message = { source: HOST_SOURCE, type: type, payload: payload };
+  function sendToIframe(message) {
     if (!iframeReady || !iframe.contentWindow) {
-      queue.push(message);
+      messageQueue.push(message);
       return;
     }
     iframe.contentWindow.postMessage(message, widgetOrigin);
   }
 
-  function flush() {
-    while (queue.length && iframe.contentWindow) {
-      iframe.contentWindow.postMessage(queue.shift(), widgetOrigin);
+  function flushMessageQueue() {
+    while (messageQueue.length && iframe.contentWindow) {
+      iframe.contentWindow.postMessage(messageQueue.shift(), widgetOrigin);
     }
+  }
+
+  function post(type, payload) {
+    sendToIframe({ source: HOST_SOURCE, type: type, payload: payload });
+  }
+
+  function sendCommand(type) {
+    var command = { source: HOST_SOURCE, type: type };
+    if (!iframeReady) {
+      commandQueue.push(command);
+      return;
+    }
+    sendToIframe(command);
+  }
+
+  function flushCommandQueue() {
+    while (commandQueue.length) {
+      sendToIframe(commandQueue.shift());
+    }
+  }
+
+  function getListenerSet(eventName) {
+    if (!eventListeners[eventName]) {
+      eventListeners[eventName] = new Set();
+    }
+    return eventListeners[eventName];
+  }
+
+  function emitEvent(eventName, data) {
+    var listeners = eventListeners[eventName];
+    if (!listeners || !listeners.size) return;
+    listeners.forEach(function (callback) {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error("[widget] event listener error:", error);
+      }
+    });
+  }
+
+  function applyIframeSize(open) {
+    if (widgetHidden) {
+      iframe.style.visibility = "hidden";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.pointerEvents = "none";
+      return;
+    }
+
+    iframe.style.visibility = "visible";
+    iframe.style.pointerEvents = "auto";
+
+    var viewport = getViewport();
+    var size = computeIframeSize(open, viewport);
+    iframe.style.width = size.width + "px";
+    iframe.style.height = size.height + "px";
+    post("viewport", viewport);
   }
 
   function syncContext(partial) {
     var fresh = collectContext();
-    context = Object.assign({}, fresh, partial || {}, { actions: context.actions || [] });
+    context = Object.assign({}, fresh, partial || {}, {
+      actions: context.actions || [],
+    });
     post("setContext", context);
   }
 
@@ -352,6 +413,8 @@
 
   window.addEventListener("message", function (event) {
     if (event.origin !== widgetOrigin) return;
+    if (event.source !== iframe.contentWindow) return;
+
     var data = event.data;
     if (!data || data.source !== WIDGET_SOURCE) return;
 
@@ -364,36 +427,110 @@
         context: context,
         website: website,
         viewport: viewport,
+        parentOrigin: window.location.origin,
       });
-      flush();
+      flushMessageQueue();
+      flushCommandQueue();
+      emitEvent("widget_ready", { visitorId: visitorId });
+      return;
     }
 
     if (data.type === "state" && data.payload) {
       widgetOpen = Boolean(data.payload.open);
       applyIframeSize(widgetOpen);
+      return;
     }
 
     if (data.type === "requestContext") {
       syncContext();
+      return;
+    }
+
+    if (data.type === "event" && data.payload && data.payload.name) {
+      emitEvent(data.payload.name, data.payload.data || {});
     }
   });
 
-  window.CoversAllChat = {
-    open: function () {
-      post("open");
+  var widgetApi = {
+    initiateChat: function () {
+      widgetHidden = false;
+      widgetOpen = true;
+      sendCommand("WIDGET_INITIATE_CHAT");
+      applyIframeSize(true);
     },
-    close: function () {
-      post("close");
+
+    closeChat: function () {
+      widgetHidden = false;
+      widgetOpen = false;
+      sendCommand("WIDGET_CLOSE_CHAT");
+      applyIframeSize(false);
     },
+
+    hideChat: function () {
+      widgetHidden = true;
+      sendCommand("WIDGET_HIDE_CHAT");
+      applyIframeSize(widgetOpen);
+    },
+
+    showChat: function () {
+      widgetHidden = false;
+      sendCommand("WIDGET_SHOW_CHAT");
+      applyIframeSize(widgetOpen);
+    },
+
+    endChat: function () {
+      widgetHidden = false;
+      sendCommand("WIDGET_END_CHAT");
+    },
+
+    isOpen: function () {
+      return widgetOpen && !widgetHidden;
+    },
+
+    on: function (eventName, callback) {
+      if (typeof callback !== "function") return widgetApi;
+      getListenerSet(eventName).add(callback);
+      return widgetApi;
+    },
+
+    off: function (eventName, callback) {
+      var listeners = eventListeners[eventName];
+      if (!listeners) return widgetApi;
+      listeners.delete(callback);
+      return widgetApi;
+    },
+
     setContext: function (partial) {
       applyContext(partial);
+      return widgetApi;
     },
+
     track: function (event) {
-      if (!event || !event.event) return;
+      if (!event || !event.event) return widgetApi;
       post("track", {
         event: event.event,
         data: event.data || {},
       });
+      return widgetApi;
+    },
+  };
+
+  if (!window.widget) {
+    window.widget = widgetApi;
+  }
+
+  window.CoversAllChat = {
+    open: function () {
+      widgetApi.initiateChat();
+    },
+    close: function () {
+      widgetApi.closeChat();
+    },
+    setContext: function (partial) {
+      widgetApi.setContext(partial);
+    },
+    track: function (event) {
+      widgetApi.track(event);
     },
   };
 

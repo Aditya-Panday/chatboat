@@ -1,18 +1,52 @@
-import type { HostToWidgetMessage, WebsiteContext, WidgetToHostMessage } from "@/lib/types";
+import type {
+  HostToWidgetMessage,
+  WebsiteContext,
+  WidgetToHostMessage,
+} from "@/lib/types";
+import type {
+  WidgetEventName,
+  WidgetEventPayloads,
+} from "@/lib/widget-protocol";
+import { createWidgetEvent } from "@/lib/widget-protocol";
 
 export const HOST_SOURCE = "coversall-chat-host";
 export const WIDGET_SOURCE = "coversall-chat";
 
-export function isHostMessage(data: unknown): data is HostToWidgetMessage {
+let trustedParentOrigin: string | null = null;
+
+export function setTrustedParentOrigin(origin: string) {
+  trustedParentOrigin = origin;
+}
+
+export function isHostMessage(
+  event: MessageEvent,
+  data: unknown,
+): data is HostToWidgetMessage {
   if (!data || typeof data !== "object") return false;
   const message = data as { source?: unknown; type?: unknown };
-  return message.source === HOST_SOURCE && typeof message.type === "string";
+  if (message.source !== HOST_SOURCE || typeof message.type !== "string") {
+    return false;
+  }
+
+  if (trustedParentOrigin && event.origin !== trustedParentOrigin) {
+    return false;
+  }
+
+  return true;
 }
 
 export function postToHost(message: WidgetToHostMessage) {
   if (typeof window === "undefined") return;
   if (window.parent === window) return;
-  window.parent.postMessage(message, "*");
+  const targetOrigin = trustedParentOrigin || "*";
+  window.parent.postMessage(message, targetOrigin);
+}
+
+export function emitWidgetEvent<T extends WidgetEventName>(
+  name: T,
+  data: WidgetEventPayloads[T],
+) {
+  postToHost(createWidgetEvent(name, data));
 }
 
 export function requestFreshContext(
@@ -29,7 +63,7 @@ export function requestFreshContext(
     }, timeoutMs);
 
     function onMessage(event: MessageEvent) {
-      if (!isHostMessage(event.data)) return;
+      if (!isHostMessage(event, event.data)) return;
       if (event.data.type === "setContext") {
         window.clearTimeout(timer);
         window.removeEventListener("message", onMessage);

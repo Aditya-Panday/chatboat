@@ -10,7 +10,7 @@ type WelcomeScreenProps = {
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onQuickAction: (id: QuickActionId) => void;
-  onClose: () => void;
+  onCloseRequest: () => void;
 };
 
 export function WelcomeScreen({
@@ -19,7 +19,7 @@ export function WelcomeScreen({
   onDraftChange,
   onSubmit,
   onQuickAction,
-  onClose,
+  onCloseRequest,
 }: WelcomeScreenProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-white">
@@ -28,7 +28,7 @@ export function WelcomeScreen({
         <div className="absolute -bottom-12 right-10 h-24 w-24 rounded-full bg-white/10" />
         <button
           type="button"
-          onClick={onClose}
+          onClick={onCloseRequest}
           aria-label="Close chat"
           className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >

@@ -20,7 +20,7 @@ export default function HomePage() {
           .
         </p>
         <pre className="mt-4 overflow-x-auto rounded-xl bg-slate-900 p-4 text-[13px] leading-6 text-slate-100">
-{`<script
+          {`<script
   src="http://localhost:3001/widget.js"
   data-website="coversandall"
 ></script>`}

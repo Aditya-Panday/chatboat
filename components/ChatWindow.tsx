@@ -3,7 +3,7 @@
 import { ChatInput } from "@/components/ChatInput";
 import { MessageList } from "@/components/MessageList";
 import type { ChatMessage, HandoffStatus } from "@/lib/types";
-import { AlertCircle, ArrowLeft, Shield, X } from "lucide-react";
+import { AlertCircle, Shield, X } from "lucide-react";
 
 type ChatWindowProps = {
   messages: ChatMessage[];
@@ -13,8 +13,7 @@ type ChatWindowProps = {
   handoffStatus: HandoffStatus;
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
-  onBack: () => void;
-  onClose: () => void;
+  onCloseRequest: () => void;
   onRequestAgent: () => void;
   onRetry?: () => void;
 };
@@ -27,8 +26,7 @@ export function ChatWindow({
   handoffStatus,
   onDraftChange,
   onSubmit,
-  onBack,
-  onClose,
+  onCloseRequest,
   onRequestAgent,
   onRetry,
 }: ChatWindowProps) {
@@ -37,15 +35,7 @@ export function ChatWindow({
       id="coversall-chat-panel"
       className="flex min-h-0 flex-1 flex-col bg-white"
     >
-      <header className="flex items-center gap-2 bg-[var(--covers-blue)] px-2 py-3 text-white">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to welcome"
-          className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
+      <header className="flex items-center gap-2 bg-[var(--covers-blue)] px-3 py-3 text-white">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[var(--covers-blue)]">
           <Shield className="h-4 w-4" />
         </span>
@@ -58,7 +48,7 @@ export function ChatWindow({
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={onCloseRequest}
           aria-label="Close chat"
           className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >

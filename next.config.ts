@@ -5,7 +5,11 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "localhost:5173",
     "127.0.0.1:3000",
-    "http://dev.cov.com:3000",
+    "dev.cov.com:3000",
+    "https://dev.alphaprints.in",
+    "https://uat.alphaprints.in",
+    "https://www.coversandall.com",
+
   ],
   async headers() {
     return [
