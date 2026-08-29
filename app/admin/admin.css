@@ -1,0 +1,16 @@
+.admin-theme {
+  --covers-blue: #2563eb;
+  --covers-blue-dark: #1d4ed8;
+  --covers-blue-soft: rgb(37 99 235 / 0.15);
+  --admin-page-bg: #eef2f7;
+  --admin-panel-bg: linear-gradient(
+    145deg,
+    #0b1f3a 0%,
+    #12325f 45%,
+    #0a2342 100%
+  );
+}
+
+.admin-panel-bg {
+  background: var(--admin-panel-bg);
+}
