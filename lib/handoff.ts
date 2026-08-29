@@ -1,29 +1,19 @@
-import type { ChatMessage, WebsiteContext } from "@/lib/types";
+import type { WebsiteContext } from "@/lib/types";
+import { requestWidgetHandoff } from "@/lib/chat/widget-api";
 
-export type HandoffRequest = {
-  visitorId: string;
-  reason?: string;
-  context: WebsiteContext;
-  transcript: ChatMessage[];
+type HandoffPayload = {
+  sessionId?: string;
+  visitorId?: string;
+  context?: WebsiteContext;
+  contextSummary?: string;
+  transcript?: unknown[];
 };
 
-export type HandoffResult = {
-  status: "requested";
-  requestedAt: string;
-};
+export async function requestAgentHandoff(payload: HandoffPayload) {
+  if (!payload.sessionId) {
+    return { status: "requested" as const, requestedAt: new Date().toISOString() };
+  }
 
-/**
- * Phase 1: local confirmation only.
- * Later, replace the body of this function with a real backend call, e.g.
- * `return fetch("/api/handoff", { method: "POST", body: JSON.stringify(payload) })`.
- */
-export async function requestAgentHandoff(
-  payload: HandoffRequest,
-): Promise<HandoffResult> {
-  void payload;
-
-  return {
-    status: "requested",
-    requestedAt: new Date().toISOString(),
-  };
+  await requestWidgetHandoff();
+  return { status: "requested" as const, requestedAt: new Date().toISOString() };
 }

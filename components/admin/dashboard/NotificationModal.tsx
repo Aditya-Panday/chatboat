@@ -1,19 +1,24 @@
 "use client";
 
-import type { AdminNotification } from "@/lib/admin/dashboard-data";
+import type { AdminNotificationItem } from "@/lib/admin/notifications-client";
 import { Bell, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect } from "react";
 
 type NotificationModalProps = {
   open: boolean;
-  notifications: AdminNotification[];
+  notifications: AdminNotificationItem[];
+  loading?: boolean;
   onClose: () => void;
+  onMarkAllRead: () => void;
 };
 
 export function NotificationModal({
   open,
   notifications,
+  loading = false,
   onClose,
+  onMarkAllRead,
 }: NotificationModalProps) {
   useEffect(() => {
     if (!open) return;
@@ -75,35 +80,54 @@ export function NotificationModal({
         </div>
 
         <ul className="max-h-[min(420px,60dvh)] divide-y divide-slate-100 overflow-y-auto">
-          {notifications.map((item) => (
-            <li
-              key={item.id}
-              className={`px-5 py-4 ${item.unread ? "bg-blue-50/40" : "bg-white"}`}
-            >
-              <div className="flex items-start gap-3">
-                {item.unread ? (
-                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--covers-blue)]" />
-                ) : (
-                  <span className="mt-1.5 h-2 w-2 shrink-0" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {item.title}
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-slate-600">
-                    {item.message}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-400">{item.time}</p>
-                </div>
-              </div>
+          {loading ? (
+            <li className="px-5 py-8 text-center text-sm text-slate-500">
+              Loading notifications…
             </li>
-          ))}
+          ) : notifications.length === 0 ? (
+            <li className="px-5 py-8 text-center text-sm text-slate-500">
+              No notifications yet.
+            </li>
+          ) : (
+            notifications.map((item) => (
+              <li
+                key={item.id}
+                className={`px-5 py-4 ${item.unread ? "bg-blue-50/40" : "bg-white"}`}
+              >
+                <div className="flex items-start gap-3">
+                  {item.unread ? (
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--covers-blue)]" />
+                  ) : (
+                    <span className="mt-1.5 h-2 w-2 shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {item.title}
+                    </p>
+                    <p className="mt-1 text-sm leading-5 text-slate-600">
+                      {item.message}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-400">{item.time}</p>
+                    {item.sessionId ? (
+                      <Link
+                        href={`/dashboard/chats?session=${item.sessionId}`}
+                        onClick={onClose}
+                        className="mt-2 inline-block text-xs font-semibold text-[var(--covers-blue)] hover:underline"
+                      >
+                        View chat
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            ))
+          )}
         </ul>
 
         <div className="border-t border-slate-200 px-5 py-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={onMarkAllRead}
             className="w-full rounded-lg py-2 text-sm font-medium text-[var(--covers-blue)] hover:bg-[var(--covers-blue-soft)]"
           >
             Mark all as read & close

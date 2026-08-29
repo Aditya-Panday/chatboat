@@ -79,3 +79,44 @@ export function suggestAgent(userMessage: string, reply: string): boolean {
 
   return triggers.some((trigger) => haystack.includes(trigger));
 }
+
+/** Heuristic: prompt resolution check after a helpful exchange. */
+export function suggestResolution(
+  userMessage: string,
+  reply: string,
+  historyLength: number,
+): boolean {
+  if (historyLength < 2) return false;
+
+  const replyLower = reply.toLowerCase();
+  const resolutionSignals = [
+    "has your query been resolved",
+    "anything else i can help",
+    "anything else we can help",
+    "glad i could help",
+    "hope that helps",
+    "let me know if you need anything else",
+    "you're all set",
+  ];
+
+  if (resolutionSignals.some((signal) => replyLower.includes(signal))) {
+    return true;
+  }
+
+  const userLower = userMessage.toLowerCase();
+  const satisfiedSignals = [
+    "thank you",
+    "thanks",
+    "that helps",
+    "got it",
+    "perfect",
+    "all set",
+    "resolved",
+  ];
+
+  return (
+    historyLength >= 4 &&
+    satisfiedSignals.some((signal) => userLower.includes(signal)) &&
+    !suggestAgent(userMessage, reply)
+  );
+}

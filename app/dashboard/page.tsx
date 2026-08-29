@@ -1,21 +1,9 @@
-import dynamic from "next/dynamic";
+import { Suspense } from "react";
 import { DashboardWelcome } from "@/components/admin/dashboard/DashboardWelcome";
-
-const StatsGridLazy = dynamic(
-  () =>
-    import("@/components/admin/dashboard/StatsGrid").then(
-      (module) => module.StatsGrid,
-    ),
-  { loading: () => <StatsSkeleton /> },
-);
-
-const RecentChatsLazy = dynamic(
-  () =>
-    import("@/components/admin/dashboard/RecentChatsPanel").then(
-      (module) => module.RecentChatsPanel,
-    ),
-  { loading: () => <TableSkeleton /> },
-);
+import {
+  StatsGridServer,
+  RecentChatsServer,
+} from "@/components/admin/dashboard/DashboardData";
 
 function StatsSkeleton() {
   return (
@@ -42,8 +30,12 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-7xl space-y-6">
       <DashboardWelcome />
 
-      <StatsGridLazy />
-      <RecentChatsLazy />
+      <Suspense fallback={<StatsSkeleton />}>
+        <StatsGridServer />
+      </Suspense>
+      <Suspense fallback={<TableSkeleton />}>
+        <RecentChatsServer />
+      </Suspense>
     </div>
   );
 }

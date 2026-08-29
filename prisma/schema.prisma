@@ -141,6 +141,8 @@ model User {
 
   authSessions AuthSession[]
 
+  notifications Notification[]
+
   @@index([userType, isActive])
   @@index([isOnline])
   @@index([lastSeenAt])
@@ -260,6 +262,9 @@ model ChatSession {
   closedAt         DateTime?         @map("closed_at")
   closedById       String?           @map("closed_by") @db.Uuid
   currentAgentId   String?           @map("current_agent_id") @db.Uuid
+  subject          String?
+  closeReason      String?           @map("close_reason")
+  metadata         Json?             @db.JsonB
   lastMessageAt    DateTime?         @map("last_message_at")
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
@@ -273,12 +278,14 @@ model ChatSession {
   review      ChatReview?
   events      ChatSessionEvent[]
   aiRuns      AiRun[]
+  notifications Notification[]
 
   @@index([status])
   @@index([currentAgentId, status])
   @@index([customerId, createdAt(sort: Desc)])
   @@index([lastMessageAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
+  @@index([status, lastMessageAt(sort: Desc)])
   @@map("chat_sessions")
 }
 
@@ -446,4 +453,27 @@ model AuthSession {
   @@index([expiresAt])
   @@index([revokedAt])
   @@map("auth_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Agent / staff notifications (in-app; delivered via WebSocket)
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  type       String
+  title      String
+  message    String
+  sessionId  String?  @map("session_id") @db.Uuid
+  metadata   Json?    @db.JsonB
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
 }

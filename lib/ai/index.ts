@@ -1,5 +1,5 @@
 import { UNKNOWN_REPLY } from "@/lib/knowledge";
-import { buildChatMessages, suggestAgent } from "@/lib/ai/prompt";
+import { buildChatMessages, suggestAgent, suggestResolution } from "@/lib/ai/prompt";
 import { generateOpenCodeReply } from "@/lib/ai/opencode";
 import type { ChatRequestBody, ChatResponseBody } from "@/lib/types";
 
@@ -12,5 +12,10 @@ export async function generateChatReply(
   return {
     text,
     suggestAgent: suggestAgent(payload.message, text),
+    suggestResolution: suggestResolution(
+      payload.message,
+      text,
+      payload.history.length,
+    ),
   };
 }

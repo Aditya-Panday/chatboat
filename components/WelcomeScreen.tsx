@@ -7,6 +7,8 @@ import { Shield, X } from "lucide-react";
 type WelcomeScreenProps = {
   draft: string;
   disabled?: boolean;
+  greetingTitle?: string;
+  greetingSubtitle?: string;
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onQuickAction: (id: QuickActionId) => void;
@@ -16,6 +18,8 @@ type WelcomeScreenProps = {
 export function WelcomeScreen({
   draft,
   disabled,
+  greetingTitle = "Hi, welcome to Covers&All",
+  greetingSubtitle = "How can we help you today?",
   onDraftChange,
   onSubmit,
   onQuickAction,
@@ -44,10 +48,10 @@ export function WelcomeScreen({
           </div>
         </div>
         <h2 className="relative mt-5 text-[22px] font-semibold leading-7">
-          Hi, welcome to Covers&All
+          {greetingTitle}
         </h2>
         <p className="relative mt-1.5 text-sm text-white/90">
-          How can we help you today?
+          {greetingSubtitle}
         </p>
       </div>
 

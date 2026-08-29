@@ -46,9 +46,11 @@ export type ChatMessage = {
   content: string;
   createdAt: string;
   suggestAgent?: boolean;
+  suggestResolution?: boolean;
+  senderType?: "CUSTOMER" | "AGENT" | "AI" | "SYSTEM";
 };
 
-export type HandoffStatus = "idle" | "requested";
+export type HandoffStatus = "idle" | "requested" | "connected";
 
 export type ChatRequestBody = {
   message: string;
@@ -64,6 +66,10 @@ export type ChatRequestBody = {
 export type ChatResponseBody = {
   text: string;
   suggestAgent: boolean;
+  suggestResolution: boolean;
+  customerMessageId?: string;
+  aiMessageId?: string;
+  aiDisabled?: boolean;
 };
 
 export type WidgetView = "welcome" | "chat";
@@ -84,6 +90,11 @@ export type HostToWidgetMessage =
         website: string;
         viewport: HostViewport;
         parentOrigin: string;
+        customer?: {
+          id: string;
+          name: string;
+          email?: string;
+        };
       };
     }
   | {

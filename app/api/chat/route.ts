@@ -1,11 +1,20 @@
 import { generateChatReply } from "@/lib/ai";
 import { inferPageType } from "@/lib/context";
+import { enforceRateLimit } from "@/lib/api/rate-limit";
+import { ApiError } from "@/lib/api/response";
+import { errorResponse } from "@/lib/api/response";
 import type {
   ChatRequestBody,
   MessageRole,
   PageSignals,
   PageType,
 } from "@/lib/types";
+import { isAiSessionStatus } from "@/lib/chat/domain";
+import {
+  ensureWritableWidgetSession,
+  persistChatExchange,
+  persistCustomerMessage,
+} from "@/services/chat/widget-chat.service";
 
 export const maxDuration = 30;
 
@@ -116,8 +125,12 @@ export async function POST(request: Request) {
   let json: unknown;
 
   try {
+    enforceRateLimit(request, "widget:chat", 30, 60_000);
     json = await request.json();
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return Response.json(errorResponse(error), { status: error.status });
+    }
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
@@ -130,7 +143,37 @@ export async function POST(request: Request) {
   }
 
   try {
+    const session = await ensureWritableWidgetSession();
+    if (session && !isAiSessionStatus(session.status)) {
+      const customerMessage = await persistCustomerMessage({
+        sessionId: session.id,
+        customerId: session.customerId,
+        content: payload.message,
+      });
+
+      return Response.json({
+        aiDisabled: true,
+        customerMessageId: customerMessage.id,
+      });
+    }
+
     const result = await generateChatReply(payload);
+
+    if (session) {
+      const saved = await persistChatExchange({
+        sessionId: session.id,
+        customerId: session.customerId,
+        customerMessage: payload.message,
+        aiMessage: result.text,
+      });
+
+      return Response.json({
+        ...result,
+        customerMessageId: saved.customerMessage.id,
+        aiMessageId: saved.aiMessage.id,
+      });
+    }
+
     return Response.json(result);
   } catch (error) {
     const message =
@@ -147,6 +190,7 @@ export async function POST(request: Request) {
           error: FRIENDLY_ERROR,
           text: FRIENDLY_ERROR,
           suggestAgent: true,
+          suggestResolution: false,
         },
         { status: 429 },
       );
@@ -158,6 +202,7 @@ export async function POST(request: Request) {
           error: FRIENDLY_ERROR,
           text: FRIENDLY_ERROR,
           suggestAgent: true,
+          suggestResolution: false,
         },
         { status: 504 },
       );

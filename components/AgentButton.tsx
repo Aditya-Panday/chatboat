@@ -27,6 +27,10 @@ export function AgentHandoffButton({
     );
   }
 
+  if (status === "connected") {
+    return null;
+  }
+
   return (
     <button
       type="button"

@@ -11,6 +11,7 @@ type ActiveChatPanelProps = {
   onBack: () => void;
   onSend: (message: string) => void;
   onResolve: () => void;
+  onAssign?: () => void;
   showBackButton: boolean;
 };
 
@@ -20,6 +21,7 @@ export function ActiveChatPanel({
   onBack,
   onSend,
   onResolve,
+  onAssign,
   showBackButton,
 }: ActiveChatPanelProps) {
   if (!conversation) {
@@ -34,8 +36,8 @@ export function ActiveChatPanel({
   const isResolved = conversation.status === "resolved";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-white">
-      <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           {showBackButton ? (
             <button
@@ -76,6 +78,7 @@ export function ActiveChatPanel({
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
+            onClick={onAssign}
             className="h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 inline-flex"
           >
             Assign
@@ -100,11 +103,13 @@ export function ActiveChatPanel({
 
       <ChatMessageFeed messages={messages} customer={customer} />
 
-      <ChatComposer
-        customerName={customer.name}
-        onSend={onSend}
-        disabled={isResolved}
-      />
+      <div className="shrink-0">
+        <ChatComposer
+          customerName={customer.name}
+          onSend={onSend}
+          disabled={isResolved}
+        />
+      </div>
     </div>
   );
 }

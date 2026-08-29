@@ -23,6 +23,21 @@
 
   var widgetOrigin = new URL(script.src).origin;
   var website = script.getAttribute("data-website") || "coversandall";
+  var customerId = script.getAttribute("data-customer-id") || "";
+  var customerName = script.getAttribute("data-customer-name") || "";
+  var customerEmail = script.getAttribute("data-customer-email") || "";
+
+  if (
+    !customerId &&
+    window.__COVERSALL_CHAT_CUSTOMER__ &&
+    window.__COVERSALL_CHAT_CUSTOMER__.id
+  ) {
+    customerId = window.__COVERSALL_CHAT_CUSTOMER__.id;
+    customerName =
+      customerName || window.__COVERSALL_CHAT_CUSTOMER__.name || "";
+    customerEmail =
+      customerEmail || window.__COVERSALL_CHAT_CUSTOMER__.email || "";
+  }
 
   function trim(text, max) {
     if (!text) return "";
@@ -428,6 +443,13 @@
         website: website,
         viewport: viewport,
         parentOrigin: window.location.origin,
+        customer: customerId
+          ? {
+              id: customerId,
+              name: customerName || "Customer",
+              email: customerEmail || undefined,
+            }
+          : undefined,
       });
       flushMessageQueue();
       flushCommandQueue();

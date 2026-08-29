@@ -44,6 +44,11 @@ declare global {
         data?: Record<string, unknown>;
       }) => Window["widget"];
     };
+    __COVERSALL_CHAT_CUSTOMER__?: {
+      id: string;
+      name: string;
+      email?: string;
+    };
     CoversAllChat?: {
       open: () => void;
       close: () => void;

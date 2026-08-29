@@ -1,15 +1,24 @@
-import {
-  DASHBOARD_STATS,
-  TREND_STYLES,
-} from "@/lib/admin/dashboard-data";
+import type { LucideIcon } from "lucide-react";
 
-export function StatsGrid() {
+export type DashboardStatItem = {
+  id: string;
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  iconClassName: string;
+};
+
+type StatsGridProps = {
+  stats: DashboardStatItem[];
+};
+
+export function StatsGrid({ stats }: StatsGridProps) {
   return (
     <section
       className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"
       aria-label="Dashboard statistics"
     >
-      {DASHBOARD_STATS.map((stat) => {
+      {stats.map((stat) => {
         const Icon = stat.icon;
         return (
           <article
@@ -21,11 +30,6 @@ export function StatsGrid() {
                 className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.iconClassName}`}
               >
                 <Icon className="h-5 w-5" strokeWidth={2} />
-              </span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold sm:text-xs ${TREND_STYLES[stat.trend]}`}
-              >
-                {stat.change}
               </span>
             </div>
             <p className="mt-4 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">

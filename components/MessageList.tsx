@@ -19,10 +19,12 @@ export function MessageList({
   handoffStatus,
   onRequestAgent,
 }: MessageListProps) {
-  const endRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const container = containerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
   }, [messages, isSending, handoffStatus]);
 
   if (messages.length === 0 && !isSending) {
@@ -34,32 +36,37 @@ export function MessageList({
   }
 
   return (
-    <div className="flex flex-col gap-3 px-3 py-4">
-      {messages.map((message) => (
-        <div key={message.id} className="flex flex-col gap-2">
-          <MessageBubble role={message.role} content={message.content} />
-          {message.role === "assistant" &&
-          message.suggestAgent &&
-          handoffStatus === "idle" ? (
-            <div className="pl-9">
-              <AgentHandoffButton
-                status={handoffStatus}
-                onRequestAgent={onRequestAgent}
-              />
-            </div>
-          ) : null}
-        </div>
-      ))}
-      {handoffStatus === "requested" ? (
-        <div className="pl-9">
-          <AgentHandoffButton
-            status={handoffStatus}
-            onRequestAgent={onRequestAgent}
-          />
-        </div>
-      ) : null}
-      {isSending ? <TypingIndicator /> : null}
-      <div ref={endRef} />
+    <div ref={containerRef} className="h-full overflow-y-auto">
+      <div className="flex flex-col gap-3 px-3 py-4">
+        {messages.map((message) => (
+          <div key={message.id} className="flex flex-col gap-2">
+            <MessageBubble
+              role={message.role}
+              content={message.content}
+              senderType={message.senderType}
+            />
+            {message.role === "assistant" &&
+            message.suggestAgent &&
+            handoffStatus === "idle" ? (
+              <div className="pl-9">
+                <AgentHandoffButton
+                  status={handoffStatus}
+                  onRequestAgent={onRequestAgent}
+                />
+              </div>
+            ) : null}
+          </div>
+        ))}
+        {handoffStatus === "requested" ? (
+          <div className="pl-9">
+            <AgentHandoffButton
+              status={handoffStatus}
+              onRequestAgent={onRequestAgent}
+            />
+          </div>
+        ) : null}
+        {isSending ? <TypingIndicator /> : null}
+      </div>
     </div>
   );
 }

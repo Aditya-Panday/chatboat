@@ -16,14 +16,19 @@ type ChatMessageFeedProps = {
 };
 
 export function ChatMessageFeed({ messages, customer }: ChatMessageFeedProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = containerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
   }, [messages]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-[#f4f6f9] px-4 py-5 sm:px-6">
+    <div
+      ref={containerRef}
+      className="min-h-0 flex-1 overflow-y-auto bg-[#f4f6f9] px-4 py-5 sm:px-6"
+    >
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {messages.map((message) => {
           switch (message.type) {
@@ -129,7 +134,6 @@ export function ChatMessageFeed({ messages, customer }: ChatMessageFeedProps) {
               return null;
           }
         })}
-        <div ref={bottomRef} />
       </div>
     </div>
   );
