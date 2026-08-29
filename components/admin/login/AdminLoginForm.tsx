@@ -1,10 +1,13 @@
 "use client";
 
 import { AdminLogo } from "@/components/admin/login/AdminLogo";
+import { ClientApiError } from "@/lib/api/client";
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 export function AdminLoginForm() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,9 +26,28 @@ export function AdminLoginForm() {
 
     setIsSubmitting(true);
     try {
-      // Auth API will be wired in a later phase.
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setError("Admin authentication is not connected yet.");
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail, password }),
+      });
+
+      const json = await response.json();
+
+      if (!json.success) {
+        setError(json.error?.message ?? "Unable to sign in.");
+        return;
+      }
+
+      router.replace(json.data?.redirectTo ?? "/dashboard");
+      router.refresh();
+    } catch (submitError) {
+      if (submitError instanceof ClientApiError) {
+        setError(submitError.message);
+      } else {
+        setError("Unable to sign in. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

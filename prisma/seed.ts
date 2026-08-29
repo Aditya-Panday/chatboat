@@ -19,6 +19,15 @@ const PERMISSIONS = [
   { name: "review.view", description: "View chat reviews/ratings" },
   { name: "analytics.view", description: "View analytics dashboards" },
   { name: "users.view", description: "View user accounts" },
+  { name: "user.create", description: "Create user accounts" },
+  { name: "user.read", description: "Read user accounts" },
+  { name: "user.update", description: "Update user accounts" },
+  { name: "user.block", description: "Block or activate user accounts" },
+  { name: "user.role.update", description: "Assign or change user roles" },
+  {
+    name: "user.password.update",
+    description: "Reset or update user passwords",
+  },
   { name: "audit.view", description: "View security audit logs" },
 ] as const;
 
@@ -112,7 +121,7 @@ async function main() {
 
   console.log("Seeding demo admin...");
   const admin = await prisma.user.upsert({
-    where: { email: "admin@coversandall.com" },
+    where: { email: "aditya.panday@groupbayport.com" },
     update: {
       name: "Demo Admin",
       passwordHash: adminPasswordHash,
@@ -120,7 +129,7 @@ async function main() {
       isActive: true,
     },
     create: {
-      email: "admin@coversandall.com",
+      email: "aditya.panday@groupbayport.com",
       name: "Demo Admin",
       passwordHash: adminPasswordHash,
       userType: "STAFF",

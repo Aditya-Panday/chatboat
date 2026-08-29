@@ -2,7 +2,7 @@ export type RecentCustomer = {
   id: string;
   name: string;
   email: string;
-  role: "Customer";
+  role: "Customer" | string;
   initials: string;
   avatarClassName: string;
   blocked: boolean;

@@ -4,13 +4,15 @@ import { Bell, Menu } from "lucide-react";
 
 type DashboardHeaderProps = {
   userName?: string;
+  userRole?: string;
   onMenuClick: () => void;
   onNotificationClick: () => void;
   unreadCount?: number;
 };
 
 export function DashboardHeader({
-  userName = "Aditya",
+  userName = "Admin",
+  userRole,
   onMenuClick,
   onNotificationClick,
   unreadCount = 0,
@@ -50,9 +52,14 @@ export function DashboardHeader({
         </button>
 
         <div className="flex items-center gap-2.5 pl-1 sm:gap-3 sm:pl-2">
-          <span className="hidden text-sm font-medium text-slate-700 sm:inline">
-            {userName}
-          </span>
+          <div className="hidden text-right sm:block">
+            <span className="block text-sm font-medium text-slate-700">
+              {userName}
+            </span>
+            {userRole ? (
+              <span className="block text-xs text-slate-400">{userRole}</span>
+            ) : null}
+          </div>
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--covers-blue)] text-sm font-semibold text-white">
             {initials}
           </span>

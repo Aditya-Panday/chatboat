@@ -1,4 +1,7 @@
 import dynamic from "next/dynamic";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/session";
+import { isAdmin } from "@/lib/auth/roles";
 
 const CreateCustomerSection = dynamic(
   () =>
@@ -17,7 +20,13 @@ function CreateCustomerSkeleton() {
   );
 }
 
-export default function CreateCustomerPage() {
+export default async function CreateCustomerPage() {
+  const user = await getCurrentUser();
+
+  if (!user || !isAdmin(user)) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="mx-auto max-w-7xl">
       <CreateCustomerSection />

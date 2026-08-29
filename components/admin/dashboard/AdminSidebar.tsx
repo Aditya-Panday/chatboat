@@ -11,23 +11,54 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { isAdmin } from "@/lib/auth/roles";
+import type { AuthenticatedUser } from "@/lib/auth/types";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/chats", label: "Chats", icon: MessageSquare },
-  { href: "/dashboard/overview", label: "Overview", icon: PieChart },
-  { href: "/dashboard/create-customer", label: "Create Customer", icon: UserPlus },
-  { href: "/dashboard/logs", label: "Agent Logs", icon: ScrollText },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: false },
+  { href: "/dashboard/chats", label: "Chats", icon: MessageSquare, adminOnly: false },
+  { href: "/dashboard/overview", label: "Overview", icon: PieChart, adminOnly: false },
+  {
+    href: "/dashboard/create-customer",
+    label: "Create Customer",
+    icon: UserPlus,
+    adminOnly: true,
+  },
+  { href: "/dashboard/logs", label: "Agent Logs", icon: ScrollText, adminOnly: false },
 ] as const;
 
 type AdminSidebarProps = {
   mobileOpen: boolean;
   onMobileClose: () => void;
+  user: AuthenticatedUser;
 };
 
-export function AdminSidebar({ mobileOpen, onMobileClose }: AdminSidebarProps) {
+export function AdminSidebar({ mobileOpen, onMobileClose, user }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const showAdminLinks = isAdmin(user);
+
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !item.adminOnly || showAdminLinks,
+  );
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      router.replace("/admin/login");
+      router.refresh();
+    } finally {
+      setIsLoggingOut(false);
+      onMobileClose();
+    }
+  }
 
   const nav = (
     <>
@@ -44,7 +75,7 @@ export function AdminSidebar({ mobileOpen, onMobileClose }: AdminSidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Admin navigation">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {visibleNavItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link
@@ -68,14 +99,15 @@ export function AdminSidebar({ mobileOpen, onMobileClose }: AdminSidebarProps) {
       </nav>
 
       <div className="border-t border-slate-200 p-3">
-        <Link
-          href="/admin/login"
-          onClick={onMobileClose}
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600"
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
         >
           <LogOut className="h-[18px] w-[18px]" strokeWidth={2} />
-          Logout
-        </Link>
+          {isLoggingOut ? "Logging out…" : "Logout"}
+        </button>
       </div>
     </>
   );

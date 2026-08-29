@@ -1,14 +1,21 @@
 "use client";
 
+import type { AssignableRole } from "@/components/admin/customers/CreateCustomerForm";
 import type { RecentCustomer } from "@/lib/admin/customers-data";
 import { Eye, EyeOff, X } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api/client";
+
+export type ResetUserPayload = {
+  password: string;
+  role: string;
+};
 
 type ResetPasswordModalProps = {
   open: boolean;
   customer: RecentCustomer | null;
   onClose: () => void;
-  onSubmit: (customerId: string, password: string) => Promise<void>;
+  onSubmit: (customerId: string, payload: ResetUserPayload) => Promise<void>;
 };
 
 export function ResetPasswordModal({
@@ -18,10 +25,20 @@ export function ResetPasswordModal({
   onSubmit,
 }: ResetPasswordModalProps) {
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("");
+  const [roles, setRoles] = useState<AssignableRole[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    apiFetch<AssignableRole[]>("/api/roles")
+      .then(setRoles)
+      .catch(() => setRoles([]));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,18 +56,20 @@ export function ResetPasswordModal({
   }, [open, onClose, isSubmitting]);
 
   useEffect(() => {
-    if (!open) {
-      setPassword("");
-      setShowPassword(false);
-      setError(null);
-      setSuccess(false);
-      setIsSubmitting(false);
-    }
-  }, [open]);
+    if (!open || !customer) return;
+
+    setPassword("");
+    setRole(customer.role === "Customer" ? "AGENT" : customer.role);
+    setShowPassword(false);
+    setError(null);
+    setSuccess(false);
+    setIsSubmitting(false);
+  }, [open, customer]);
 
   if (!open || !customer) return null;
 
   const activeCustomer = customer;
+  const isStaffUser = activeCustomer.role !== "Customer";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,16 +80,24 @@ export function ResetPasswordModal({
       return;
     }
 
+    if (isStaffUser && !role) {
+      setError("Select a role.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await onSubmit(activeCustomer.id, password);
+      await onSubmit(activeCustomer.id, {
+        password,
+        role: isStaffUser ? role : activeCustomer.role,
+      });
       setSuccess(true);
       window.setTimeout(onClose, 900);
     } catch (submitError) {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "Unable to reset password.",
+          : "Unable to update user.",
       );
     } finally {
       setIsSubmitting(false);
@@ -100,7 +127,10 @@ export function ResetPasswordModal({
             >
               Reset Password
             </h2>
-            <p className="mt-0.5 text-sm text-slate-500">{customer.name}</p>
+            <p className="mt-0.5 text-sm font-medium text-slate-700">
+              {customer.name}
+            </p>
+            <p className="text-sm text-slate-500">{customer.email}</p>
           </div>
           <button
             type="button"
@@ -147,6 +177,30 @@ export function ResetPasswordModal({
             </div>
           </div>
 
+          {isStaffUser ? (
+            <div>
+              <label
+                htmlFor="reset-user-role"
+                className="mb-1.5 block text-sm font-semibold text-slate-700"
+              >
+                Role
+              </label>
+              <select
+                id="reset-user-role"
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                disabled={isSubmitting || success || roles.length === 0}
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[var(--covers-blue)] focus:ring-2 focus:ring-[var(--covers-blue-soft)]"
+              >
+                {roles.map((item) => (
+                  <option key={item.id} value={item.name}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           {error ? (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
               {error}
@@ -155,7 +209,7 @@ export function ResetPasswordModal({
 
           {success ? (
             <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              Password updated successfully.
+              User updated successfully.
             </p>
           ) : null}
 
