@@ -1,0 +1,397 @@
+// ============================================================
+// Covers&All Live Chat — ER Diagram (dbdiagram.io / VS Code extension)
+// Open this file in the dbdiagram extension to view the diagram.
+// Source of truth: prisma/schema.prisma
+// ============================================================
+
+Project coversall_live_chat {
+  database_type: "PostgreSQL"
+  Note: '''
+    Covers&All Customer Support Live Chat
+    14 tables · 11 enums · UUID PKs · RBAC · Full audit trail
+
+    Session token = SHA-256 hash only (raw token in HttpOnly cookie)
+    CLOSED sessions are never reused
+  '''
+}
+
+// ─── Enums ───────────────────────────────────────────────────
+
+Enum user_type {
+  CUSTOMER
+  STAFF
+}
+
+Enum chat_session_status {
+  AI
+  WAITING_FOR_AGENT
+  ASSIGNED
+  ACTIVE
+  CLOSED [note: "Never reused after close"]
+}
+
+Enum chat_session_source {
+  WEB
+  MOBILE
+  API
+}
+
+Enum sender_type {
+  CUSTOMER
+  AGENT
+  AI
+  SYSTEM
+}
+
+Enum message_type {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM_EVENT
+}
+
+Enum agent_status {
+  ONLINE
+  BREAK
+  UNAVAILABLE
+  OFFLINE
+}
+
+Enum assignment_type {
+  ADMIN
+  AUTO
+  REASSIGN
+}
+
+Enum actor_type {
+  CUSTOMER
+  AGENT
+  ADMIN
+  SYSTEM
+  AI
+}
+
+Enum session_event_type {
+  SESSION_CREATED
+  AGENT_REQUESTED
+  AGENT_ASSIGNED
+  AGENT_REASSIGNED
+  AGENT_JOINED
+  AGENT_CLOSED
+  CUSTOMER_CLOSED
+  SESSION_REOPENED
+  RATING_CREATED
+}
+
+Enum ai_run_status {
+  SUCCESS
+  FAILED
+}
+
+// ─── Table Groups (visual sections in diagram) ───────────────
+
+TableGroup identity_rbac [color: #4A90D9] {
+  users
+  roles
+  permissions
+  user_roles
+  role_permissions
+}
+
+TableGroup agent_management [color: #27AE60] {
+  agent_profiles
+  agent_status_history
+}
+
+TableGroup chat_core [color: #E67E22] {
+  chat_sessions
+  chat_messages
+  chat_assignments
+  chat_reviews
+  chat_session_events
+}
+
+TableGroup monitoring [color: #8E44AD] {
+  ai_runs
+  audit_logs
+}
+
+// ─── Identity & RBAC ─────────────────────────────────────────
+
+Table users {
+  id uuid [pk, note: "UUID primary key"]
+  email varchar [unique, null]
+  password_hash varchar [null, note: "bcrypt — never expose via API"]
+  name varchar [not null]
+  phone varchar [null]
+  user_type user_type [not null, note: "CUSTOMER | STAFF"]
+  is_active boolean [default: true]
+  is_online boolean [default: false]
+  last_seen_at timestamptz [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Note: "Customers + staff. Permissions via roles — not hard-coded on user_type."
+}
+
+Table roles {
+  id uuid [pk]
+  name varchar [unique, not null, note: "ADMIN | SUPERVISOR | AGENT"]
+  description varchar [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table permissions {
+  id uuid [pk]
+  name varchar [unique, not null, note: "e.g. chat.view.all"]
+  description varchar [null]
+  created_at timestamptz [not null]
+}
+
+Table user_roles {
+  user_id uuid [not null]
+  role_id uuid [not null]
+  assigned_at timestamptz [not null]
+
+  indexes {
+    (user_id, role_id) [pk]
+    role_id
+  }
+}
+
+Table role_permissions {
+  role_id uuid [not null]
+  permission_id uuid [not null]
+
+  indexes {
+    (role_id, permission_id) [pk]
+    permission_id
+  }
+}
+
+// ─── Agent ───────────────────────────────────────────────────
+
+Table agent_profiles {
+  id uuid [pk]
+  user_id uuid [unique, not null, note: "1:1 with staff agent user"]
+  status agent_status [default: "OFFLINE"]
+  active_chat_count int [default: 0, note: "Denormalized — update transactionally"]
+  total_chat_count int [default: 0]
+  average_rating decimal(3,2) [null]
+  total_reviews int [default: 0]
+  max_concurrent_chats int [default: 5, null]
+  last_status_changed_at timestamptz [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (status, active_chat_count) [note: "Auto-assignment: pick lowest load ONLINE agent"]
+  }
+
+  Note: "Extended profile for support agents"
+}
+
+Table agent_status_history {
+  id uuid [pk]
+  agent_id uuid [not null]
+  status agent_status [not null]
+  started_at timestamptz [not null]
+  ended_at timestamptz [null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (agent_id, started_at)
+  }
+
+  Note: "Immutable availability timeline"
+}
+
+// ─── Chat Sessions ───────────────────────────────────────────
+
+Table chat_sessions {
+  id uuid [pk]
+  public_id uuid [unique, not null, note: "Safe external ID"]
+  session_token_hash varchar [unique, not null, note: "SHA-256 — never store raw token"]
+  customer_id uuid [null]
+  status chat_session_status [default: "AI"]
+  source chat_session_source [default: "WEB"]
+  started_at timestamptz [not null]
+  agent_requested_at timestamptz [null]
+  assigned_at timestamptz [null]
+  closed_at timestamptz [null]
+  closed_by uuid [null]
+  current_agent_id uuid [null, note: "Denormalized — full history in chat_assignments"]
+  last_message_at timestamptz [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    status
+    (current_agent_id, status)
+    (customer_id, created_at)
+    last_message_at
+    created_at
+  }
+
+  Note: '''
+    Lifecycle: AI → WAITING_FOR_AGENT → ASSIGNED → ACTIVE → CLOSED
+    CLOSED sessions are never reused for new chats
+  '''
+}
+
+Table chat_messages {
+  id uuid [pk]
+  session_id uuid [not null]
+  sender_type sender_type [not null]
+  sender_id uuid [null, note: "Nullable for AI / SYSTEM messages"]
+  message_type message_type [default: "TEXT"]
+  content text [null]
+  metadata jsonb [null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (session_id, created_at) [note: "Primary transcript query"]
+  }
+
+  Note: "Single table for CUSTOMER, AGENT, AI, and SYSTEM messages"
+}
+
+Table chat_assignments {
+  id uuid [pk]
+  session_id uuid [not null]
+  agent_id uuid [not null]
+  assigned_by uuid [null, note: "Admin who manually assigned"]
+  assignment_type assignment_type [not null]
+  assigned_at timestamptz [not null]
+  unassigned_at timestamptz [null]
+  is_current boolean [default: true]
+  created_at timestamptz [not null]
+
+  indexes {
+    session_id
+    (agent_id, assigned_at)
+    (agent_id, is_current)
+  }
+
+  Note: "Full history: Agent A → Agent B → Agent C"
+}
+
+Table chat_reviews {
+  id uuid [pk]
+  session_id uuid [unique, not null]
+  agent_id uuid [not null]
+  reviewer_id uuid [not null, note: "Admin / supervisor only"]
+  rating int [not null, note: "CHECK constraint: 1–5"]
+  comment text [null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (agent_id, created_at)
+    reviewer_id
+  }
+}
+
+Table chat_session_events {
+  id uuid [pk]
+  session_id uuid [not null]
+  event_type session_event_type [not null]
+  actor_type actor_type [not null]
+  actor_id uuid [null]
+  metadata jsonb [null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (session_id, created_at)
+  }
+
+  Note: "Immutable per-session event log"
+}
+
+// ─── Monitoring & Audit ──────────────────────────────────────
+
+Table ai_runs {
+  id uuid [pk]
+  session_id uuid [not null]
+  message_id uuid [null]
+  provider varchar [not null]
+  model varchar [not null]
+  input_tokens int [null]
+  output_tokens int [null]
+  total_tokens int [null]
+  latency_ms int [null]
+  status ai_run_status [not null]
+  error text [null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (session_id, created_at)
+    (status, created_at)
+  }
+
+  Note: "Optional AI provider / token / latency tracking"
+}
+
+Table audit_logs {
+  id uuid [pk]
+  actor_id uuid [null]
+  action varchar [not null]
+  entity_type varchar [not null]
+  entity_id varchar [not null]
+  old_data jsonb [null]
+  new_data jsonb [null]
+  ip_address varchar [null]
+  user_agent varchar [null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (actor_id, created_at)
+    (entity_type, entity_id)
+    created_at
+  }
+
+  Note: "Admin / security actions audit trail"
+}
+
+// ─── Relationships ───────────────────────────────────────────
+
+// RBAC
+Ref: user_roles.user_id > users.id
+Ref: user_roles.role_id > roles.id
+Ref: role_permissions.role_id > roles.id
+Ref: role_permissions.permission_id > permissions.id
+
+// Agent
+Ref: agent_profiles.user_id - users.id
+Ref: agent_status_history.agent_id > users.id
+
+// Chat sessions → users (multiple roles)
+Ref: chat_sessions.customer_id > users.id
+Ref: chat_sessions.current_agent_id > users.id
+Ref: chat_sessions.closed_by > users.id
+
+// Chat messages
+Ref: chat_messages.session_id > chat_sessions.id
+Ref: chat_messages.sender_id > users.id
+
+// Assignments
+Ref: chat_assignments.session_id > chat_sessions.id
+Ref: chat_assignments.agent_id > users.id
+Ref: chat_assignments.assigned_by > users.id
+
+// Reviews (1:1 with session)
+Ref: chat_reviews.session_id - chat_sessions.id
+Ref: chat_reviews.agent_id > users.id
+Ref: chat_reviews.reviewer_id > users.id
+
+// Session events
+Ref: chat_session_events.session_id > chat_sessions.id
+Ref: chat_session_events.actor_id > users.id
+
+// AI runs
+Ref: ai_runs.session_id > chat_sessions.id
+Ref: ai_runs.message_id > chat_messages.id
+
+// Audit
+Ref: audit_logs.actor_id > users.id

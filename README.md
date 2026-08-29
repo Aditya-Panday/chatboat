@@ -31,6 +31,29 @@ Loader script: [http://localhost:3001/widget.js](http://localhost:3001/widget.js
 
 Add the script tag above to **any** local project (your store, Next app, plain HTML) to test the iframe widget.
 
+## Database (PostgreSQL + Prisma)
+
+Production live-chat schema with RBAC, agent assignment, session recovery, and full audit trails.
+
+```bash
+# 1. Set DATABASE_URL in .env (see .env.example)
+# 2. Apply migration
+npm run db:migrate
+
+# 3. Seed roles, permissions, demo users
+npm run db:seed
+```
+
+Full design docs: [`docs/database/DATABASE_DESIGN.md`](docs/database/DATABASE_DESIGN.md)  
+Visual ER diagram: import [`docs/database/schema.dbml`](docs/database/schema.dbml) into [dbdiagram.io](https://dbdiagram.io)
+
+Demo accounts after seed:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@coversandall.com | Admin@12345 |
+| Agent | agent@coversandall.com | Agent@12345 |
+
 ## Configure OpenCode Console inference
 
 The chat API calls OpenCode Console's hosted OpenAI-compatible endpoint from the server only.

@@ -1,0 +1,424 @@
+// Covers&All Live Chat — PostgreSQL schema (source of truth)
+// Run: npx prisma validate && npx prisma format && npx prisma migrate dev
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserType {
+  CUSTOMER
+  STAFF
+}
+
+enum ChatSessionStatus {
+  AI
+  WAITING_FOR_AGENT
+  ASSIGNED
+  ACTIVE
+  CLOSED
+}
+
+enum ChatSessionSource {
+  WEB
+  MOBILE
+  API
+}
+
+enum SenderType {
+  CUSTOMER
+  AGENT
+  AI
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM_EVENT
+}
+
+enum AgentStatus {
+  ONLINE
+  BREAK
+  UNAVAILABLE
+  OFFLINE
+}
+
+enum AssignmentType {
+  ADMIN
+  AUTO
+  REASSIGN
+}
+
+enum ActorType {
+  CUSTOMER
+  AGENT
+  ADMIN
+  SYSTEM
+  AI
+}
+
+enum SessionEventType {
+  SESSION_CREATED
+  AGENT_REQUESTED
+  AGENT_ASSIGNED
+  AGENT_REASSIGNED
+  AGENT_JOINED
+  AGENT_CLOSED
+  CUSTOMER_CLOSED
+  SESSION_REOPENED
+  RATING_CREATED
+}
+
+enum AiRunStatus {
+  SUCCESS
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Identity & RBAC
+// ---------------------------------------------------------------------------
+
+/// Unified identity table for customers and staff (admins, agents, supervisors).
+/// Authorization is driven by roles/permissions — never hard-coded on user_type.
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String?   @unique
+  passwordHash String?   @map("password_hash")
+  name         String
+  phone        String?
+  userType     UserType  @map("user_type")
+  isActive     Boolean   @default(true) @map("is_active")
+  isOnline     Boolean   @default(false) @map("is_online")
+  lastSeenAt   DateTime? @map("last_seen_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // RBAC
+  userRoles UserRole[]
+
+  // Agent profile (staff agents only; enforced at application layer)
+  agentProfile AgentProfile?
+
+  // Chat — as customer
+  customerSessions ChatSession[] @relation("CustomerSessions")
+
+  // Chat — as current assigned agent (denormalized fast lookup)
+  assignedSessions ChatSession[] @relation("CurrentAgentSessions")
+
+  // Chat — closed by (customer or staff)
+  closedSessions ChatSession[] @relation("ClosedByUser")
+
+  // Assignment history
+  chatAssignments    ChatAssignment[] @relation("AssignmentAgent")
+  assignmentsCreated ChatAssignment[] @relation("AssignmentAssignedBy")
+
+  // Messages sent by this user (when sender_type is CUSTOMER or AGENT)
+  chatMessages ChatMessage[] @relation("MessageSender")
+
+  // Reviews
+  reviewsAsAgent    ChatReview[] @relation("ReviewAgent")
+  reviewsAsReviewer ChatReview[] @relation("ReviewReviewer")
+
+  // Agent status history
+  agentStatusHistory AgentStatusHistory[]
+
+  // Session events where this user is the actor
+  chatSessionEvents ChatSessionEvent[] @relation("EventActor")
+
+  // Security audit trail
+  auditLogs AuditLog[]
+
+  @@index([userType, isActive])
+  @@index([isOnline])
+  @@index([lastSeenAt])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// Agent profile & status
+// ---------------------------------------------------------------------------
+
+/// One-to-one extension for staff agents.
+/// active_chat_count / total_chat_count are denormalized for fast assignment dashboards.
+/// Must be updated transactionally on assign, reassign, and close.
+model AgentProfile {
+  id                  String      @id @default(uuid()) @db.Uuid
+  userId              String      @unique @map("user_id") @db.Uuid
+  status              AgentStatus @default(OFFLINE)
+  activeChatCount     Int         @default(0) @map("active_chat_count")
+  totalChatCount      Int         @default(0) @map("total_chat_count")
+  averageRating       Decimal?    @map("average_rating") @db.Decimal(3, 2)
+  totalReviews        Int         @default(0) @map("total_reviews")
+  maxConcurrentChats  Int?        @default(5) @map("max_concurrent_chats")
+  lastStatusChangedAt DateTime?   @map("last_status_changed_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  /// Composite index supports: find ONLINE agents with lowest active_chat_count
+  @@index([status, activeChatCount])
+  @@map("agent_profiles")
+}
+
+/// Complete immutable history of agent availability changes.
+model AgentStatusHistory {
+  id        String      @id @default(uuid()) @db.Uuid
+  agentId   String      @map("agent_id") @db.Uuid
+  status    AgentStatus
+  startedAt DateTime    @map("started_at")
+  endedAt   DateTime?   @map("ended_at")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  agent User @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@index([agentId, startedAt(sort: Desc)])
+  @@map("agent_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Chat sessions
+// ---------------------------------------------------------------------------
+
+/// A single customer conversation lifecycle.
+/// - public_id: safe external identifier (never expose internal session token)
+/// - session_token_hash: SHA-256 hash of the HttpOnly cookie token (never store raw token)
+/// - current_agent_id: denormalized pointer; full history lives in chat_assignments
+/// CLOSED sessions are never reused — a new chat always creates a new row.
+model ChatSession {
+  id               String            @id @default(uuid()) @db.Uuid
+  publicId         String            @unique @default(uuid()) @map("public_id") @db.Uuid
+  sessionTokenHash String            @unique @map("session_token_hash")
+  customerId       String?           @map("customer_id") @db.Uuid
+  status           ChatSessionStatus @default(AI)
+  source           ChatSessionSource @default(WEB)
+  startedAt        DateTime          @default(now()) @map("started_at")
+  agentRequestedAt DateTime?         @map("agent_requested_at")
+  assignedAt       DateTime?         @map("assigned_at")
+  closedAt         DateTime?         @map("closed_at")
+  closedById       String?           @map("closed_by") @db.Uuid
+  currentAgentId   String?           @map("current_agent_id") @db.Uuid
+  lastMessageAt    DateTime?         @map("last_message_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  customer     User? @relation("CustomerSessions", fields: [customerId], references: [id], onDelete: SetNull)
+  currentAgent User? @relation("CurrentAgentSessions", fields: [currentAgentId], references: [id], onDelete: SetNull)
+  closedBy     User? @relation("ClosedByUser", fields: [closedById], references: [id], onDelete: SetNull)
+
+  messages    ChatMessage[]
+  assignments ChatAssignment[]
+  review      ChatReview?
+  events      ChatSessionEvent[]
+  aiRuns      AiRun[]
+
+  @@index([status])
+  @@index([currentAgentId, status])
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([lastMessageAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("chat_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Chat messages (single table for all sender types)
+// ---------------------------------------------------------------------------
+
+model ChatMessage {
+  id          String      @id @default(uuid()) @db.Uuid
+  sessionId   String      @map("session_id") @db.Uuid
+  senderType  SenderType  @map("sender_type")
+  senderId    String?     @map("sender_id") @db.Uuid
+  messageType MessageType @default(TEXT) @map("message_type")
+  content     String?
+  metadata    Json?       @db.JsonB
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  sender  User?       @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  aiRuns AiRun[]
+
+  /// Primary message retrieval pattern: load session transcript in chronological order
+  @@index([sessionId, createdAt])
+  @@map("chat_messages")
+}
+
+// ---------------------------------------------------------------------------
+// Agent assignment history (fully auditable)
+// ---------------------------------------------------------------------------
+
+model ChatAssignment {
+  id             String         @id @default(uuid()) @db.Uuid
+  sessionId      String         @map("session_id") @db.Uuid
+  agentId        String         @map("agent_id") @db.Uuid
+  assignedById   String?        @map("assigned_by") @db.Uuid
+  assignmentType AssignmentType @map("assignment_type")
+  assignedAt     DateTime       @default(now()) @map("assigned_at")
+  unassignedAt   DateTime?      @map("unassigned_at")
+  isCurrent      Boolean        @default(true) @map("is_current")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  agent      User        @relation("AssignmentAgent", fields: [agentId], references: [id], onDelete: Restrict)
+  assignedBy User?       @relation("AssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([agentId, assignedAt(sort: Desc)])
+  @@index([agentId, isCurrent])
+  @@map("chat_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Chat reviews / ratings
+// ---------------------------------------------------------------------------
+
+/// One review per closed session. Rating 1–5 enforced by DB CHECK constraint in migration SQL.
+model ChatReview {
+  id         String   @id @default(uuid()) @db.Uuid
+  sessionId  String   @unique @map("session_id") @db.Uuid
+  agentId    String   @map("agent_id") @db.Uuid
+  reviewerId String   @map("reviewer_id") @db.Uuid
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  session  ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  agent    User        @relation("ReviewAgent", fields: [agentId], references: [id], onDelete: Restrict)
+  reviewer User        @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([agentId, createdAt(sort: Desc)])
+  @@index([reviewerId])
+  @@map("chat_reviews")
+}
+
+// ---------------------------------------------------------------------------
+// Session event log (immutable audit trail per session)
+// ---------------------------------------------------------------------------
+
+model ChatSessionEvent {
+  id        String           @id @default(uuid()) @db.Uuid
+  sessionId String           @map("session_id") @db.Uuid
+  eventType SessionEventType @map("event_type")
+  actorType ActorType        @map("actor_type")
+  actorId   String?          @map("actor_id") @db.Uuid
+  metadata  Json?            @db.JsonB
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  actor   User?       @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, createdAt])
+  @@map("chat_session_events")
+}
+
+// ---------------------------------------------------------------------------
+// AI execution tracking (optional production monitoring)
+// ---------------------------------------------------------------------------
+
+model AiRun {
+  id           String      @id @default(uuid()) @db.Uuid
+  sessionId    String      @map("session_id") @db.Uuid
+  messageId    String?     @map("message_id") @db.Uuid
+  provider     String
+  model        String
+  inputTokens  Int?        @map("input_tokens")
+  outputTokens Int?        @map("output_tokens")
+  totalTokens  Int?        @map("total_tokens")
+  latencyMs    Int?        @map("latency_ms")
+  status       AiRunStatus
+  error        String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  session ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  message ChatMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("ai_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Admin / security audit log
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldData    Json?    @map("old_data") @db.JsonB
+  newData    Json?    @map("new_data") @db.JsonB
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
