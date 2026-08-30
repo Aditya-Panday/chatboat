@@ -1,4 +1,5 @@
 import {
+  loadDashboardOverviewStats,
   loadDashboardStats,
   loadRecentChats,
 } from "@/lib/admin/dashboard-server";
@@ -10,6 +11,12 @@ import { isAdmin } from "@/lib/auth/roles";
 export async function StatsGridServer() {
   const stats = await loadDashboardStats();
   return <StatsGrid stats={stats ?? []} />;
+}
+
+export async function OverviewStatsGridServer() {
+  const stats = await loadDashboardOverviewStats();
+  if (!stats?.length) return null;
+  return <StatsGrid stats={stats} />;
 }
 
 export async function RecentChatsServer() {

@@ -222,18 +222,25 @@ function ChatInboxContent() {
 
     try {
       await resolveConversation(selectedId);
+      setActiveTab("resolved");
+      setPage(1);
       setConversations((current) =>
         current.map((conversation) =>
           conversation.id === selectedId
-            ? { ...conversation, status: "resolved" as Conversation["status"] }
+            ? {
+                ...conversation,
+                status: "resolved",
+                sessionStatus: "CLOSED",
+                statusLabel: "Closed",
+                customer: { ...conversation.customer, status: "offline" },
+              }
             : conversation,
         ),
       );
-      void loadConversations();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to resolve chat.");
     }
-  }, [loadConversations, selectedId]);
+  }, [selectedId]);
 
   const showListOnMobile = mobileView === "list";
   const showChatOnMobile = mobileView === "chat";

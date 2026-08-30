@@ -1,21 +1,25 @@
 "use client";
 
 import type { ChatFilterTab, Conversation } from "@/lib/admin/chats-data";
+import { ConversationStatusBadge } from "@/components/admin/chats/ConversationStatusBadge";
 import { Search } from "lucide-react";
 import { memo } from "react";
 
 type ConversationListItemProps = {
   conversation: Conversation;
   active: boolean;
+  activeTab: ChatFilterTab;
   onSelect: (id: string) => void;
 };
 
 export const ConversationListItem = memo(function ConversationListItem({
   conversation,
   active,
+  activeTab,
   onSelect,
 }: ConversationListItemProps) {
   const { customer } = conversation;
+  const showStatusBadge = activeTab === "all";
 
   return (
     <button
@@ -45,9 +49,17 @@ export const ConversationListItem = memo(function ConversationListItem({
             {conversation.time}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-xs leading-5 text-slate-500">
-          {conversation.preview}
-        </p>
+        <div className="mt-0.5 flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-xs leading-5 text-slate-500">
+            {conversation.preview}
+          </p>
+          {showStatusBadge ? (
+            <ConversationStatusBadge
+              statusLabel={conversation.statusLabel}
+              sessionStatus={conversation.sessionStatus}
+            />
+          ) : null}
+        </div>
       </div>
 
       {conversation.unreadCount > 0 ? (
@@ -128,6 +140,7 @@ export function ConversationList({
               key={conversation.id}
               conversation={conversation}
               active={conversation.id === selectedId}
+              activeTab={activeTab}
               onSelect={onSelect}
             />
           ))

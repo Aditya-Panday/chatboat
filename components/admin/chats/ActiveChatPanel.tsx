@@ -33,7 +33,7 @@ export function ActiveChatPanel({
   }
 
   const { customer } = conversation;
-  const isResolved = conversation.status === "resolved";
+  const isResolved = conversation.sessionStatus === "CLOSED";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">

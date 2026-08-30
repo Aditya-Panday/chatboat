@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentHandoffBar } from "@/components/AgentHandoffBar";
 import { ChatInput } from "@/components/ChatInput";
 import { ClosedChatBanner } from "@/components/ClosedChatBanner";
 import { MessageList } from "@/components/MessageList";
@@ -80,7 +81,6 @@ export function ChatWindow({
           messages={messages}
           isSending={isSending}
           handoffStatus={handoffStatus}
-          onRequestAgent={onRequestAgent}
         />
       </div>
 
@@ -122,12 +122,19 @@ export function ChatWindow({
       {isSessionClosed ? (
         <ClosedChatBanner onStartNewChat={() => onStartNewChat?.()} />
       ) : (
-        <ChatInput
-          value={draft}
-          disabled={isSending}
-          onChange={onDraftChange}
-          onSubmit={onSubmit}
-        />
+        <>
+          <AgentHandoffBar
+            handoffStatus={handoffStatus}
+            isSessionClosed={isSessionClosed}
+            onRequestAgent={onRequestAgent}
+          />
+          <ChatInput
+            value={draft}
+            disabled={isSending}
+            onChange={onDraftChange}
+            onSubmit={onSubmit}
+          />
+        </>
       )}
     </div>
   );

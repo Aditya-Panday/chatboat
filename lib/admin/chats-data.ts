@@ -2,6 +2,13 @@ export type ChatFilterTab = "all" | "unassigned" | "resolved";
 
 export type ConversationStatus = "open" | "unassigned" | "resolved";
 
+export type SessionStatus =
+  | "AI"
+  | "WAITING_FOR_AGENT"
+  | "ASSIGNED"
+  | "ACTIVE"
+  | "CLOSED";
+
 export type ConversationCustomer = {
   name: string;
   initials: string;
@@ -17,6 +24,8 @@ export type Conversation = {
   time: string;
   unreadCount: number;
   status: ConversationStatus;
+  sessionStatus: SessionStatus;
+  statusLabel: string;
 };
 
 export type ChatMessage =
@@ -78,6 +87,8 @@ export const CONVERSATIONS: Conversation[] = [
     time: "Just now",
     unreadCount: 1,
     status: "open",
+    sessionStatus: "ACTIVE",
+    statusLabel: "Active",
   },
   {
     id: "chat-michael",
@@ -85,13 +96,15 @@ export const CONVERSATIONS: Conversation[] = [
       name: "Michael Chen",
       initials: "MC",
       avatarClassName: "bg-violet-100 text-violet-700",
-      status: "offline",
+      status: "online",
       source: "Online via Web Widget",
     },
     preview: "Can you help me track my shipment?",
     time: "Yesterday",
     unreadCount: 0,
     status: "open",
+    sessionStatus: "ASSIGNED",
+    statusLabel: "Assigned",
   },
   {
     id: "chat-tech",
@@ -106,6 +119,8 @@ export const CONVERSATIONS: Conversation[] = [
     time: "Oct 12",
     unreadCount: 3,
     status: "unassigned",
+    sessionStatus: "WAITING_FOR_AGENT",
+    statusLabel: "Waiting",
   },
   {
     id: "chat-alerts",
@@ -120,6 +135,8 @@ export const CONVERSATIONS: Conversation[] = [
     time: "Oct 12",
     unreadCount: 0,
     status: "resolved",
+    sessionStatus: "CLOSED",
+    statusLabel: "Closed",
   },
   {
     id: "chat-elena",
@@ -127,13 +144,15 @@ export const CONVERSATIONS: Conversation[] = [
       name: "Elena Rodriguez",
       initials: "ER",
       avatarClassName: "bg-emerald-100 text-emerald-700",
-      status: "online",
+      status: "offline",
       source: "Online via Web Widget",
     },
     preview: "Thanks for the quick response!",
     time: "Oct 11",
     unreadCount: 0,
     status: "resolved",
+    sessionStatus: "CLOSED",
+    statusLabel: "Closed",
   },
 ];
 

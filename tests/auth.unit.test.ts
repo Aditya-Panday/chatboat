@@ -62,6 +62,8 @@ test("filterConversations applies tab and search filters", () => {
         time: "Now",
         unreadCount: 0,
         status: "unassigned",
+        sessionStatus: "WAITING_FOR_AGENT",
+        statusLabel: "Waiting",
       },
     ],
     "unassigned",

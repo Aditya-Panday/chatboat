@@ -1,27 +1,18 @@
 "use client";
 
-import { ChatInput } from "@/components/ChatInput";
 import { QuickActions, type QuickActionId } from "@/components/QuickActions";
 import { Shield, X } from "lucide-react";
 
 type WelcomeScreenProps = {
-  draft: string;
-  disabled?: boolean;
   greetingTitle?: string;
   greetingSubtitle?: string;
-  onDraftChange: (value: string) => void;
-  onSubmit: () => void;
   onQuickAction: (id: QuickActionId) => void;
   onCloseRequest: () => void;
 };
 
 export function WelcomeScreen({
-  draft,
-  disabled,
   greetingTitle = "Hi, welcome to Covers&All",
-  greetingSubtitle = "How can we help you today?",
-  onDraftChange,
-  onSubmit,
+  greetingSubtitle = "What do you need help with today?",
   onQuickAction,
   onCloseRequest,
 }: WelcomeScreenProps) {
@@ -55,19 +46,11 @@ export function WelcomeScreen({
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          <p className="mb-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">
-            Quick help
-          </p>
-          <QuickActions onSelect={onQuickAction} />
-        </div>
-        <ChatInput
-          value={draft}
-          disabled={disabled}
-          onChange={onDraftChange}
-          onSubmit={onSubmit}
-        />
+      <div className="flex min-h-0 flex-1 flex-col px-4 py-5">
+        <p className="mb-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+          Get started
+        </p>
+        <QuickActions onSelect={onQuickAction} />
       </div>
     </div>
   );

@@ -1,7 +1,10 @@
 import {
   Bot,
+  CalendarDays,
+  CheckCircle2,
   Clock3,
   MessageSquare,
+  MessagesSquare,
   Users,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -84,6 +87,70 @@ export async function loadDashboardStats() {
       value: stats.closedToday,
       icon: Users,
       iconClassName: "bg-emerald-50 text-emerald-600",
+    },
+  ];
+}
+
+export async function loadDashboardOverviewStats() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const stats = await getDashboardStats(user);
+
+  if (isAdmin(user)) {
+    return [
+      {
+        id: "total-chats",
+        label: "Total Chats",
+        value: stats.totalChats,
+        icon: MessagesSquare,
+        iconClassName: "bg-indigo-50 text-indigo-600",
+      },
+      {
+        id: "resolved-chats",
+        label: "Resolved Chats",
+        value: stats.resolvedChats,
+        icon: CheckCircle2,
+        iconClassName: "bg-slate-100 text-slate-600",
+      },
+      {
+        id: "total-agents",
+        label: "Total Agents",
+        value: stats.totalAgents,
+        icon: Users,
+        iconClassName: "bg-teal-50 text-teal-600",
+      },
+      {
+        id: "month-chats",
+        label: "Current Month Chats",
+        value: stats.currentMonthChats,
+        icon: CalendarDays,
+        iconClassName: "bg-orange-50 text-orange-600",
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "total-chats",
+      label: "Total Chats",
+      value: stats.totalChats,
+      icon: MessagesSquare,
+      iconClassName: "bg-indigo-50 text-indigo-600",
+    },
+    {
+      id: "resolved-chats",
+      label: "Resolved Chats",
+      value: stats.resolvedChats,
+      icon: CheckCircle2,
+      iconClassName: "bg-slate-100 text-slate-600",
+    },
+    {
+      id: "month-chats",
+      label: "Current Month Chats",
+      value: stats.currentMonthChats,
+      icon: CalendarDays,
+      iconClassName: "bg-orange-50 text-orange-600",
     },
   ];
 }

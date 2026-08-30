@@ -205,10 +205,18 @@ export async function resolveConversation(params: {
   return closed;
 }
 
+function startOfCurrentMonth() {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  return monthStart;
+}
+
 export async function getDashboardStats(user: AuthenticatedUser) {
   const access = buildAccessWhere(user);
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const monthStart = startOfCurrentMonth();
 
   const [
     openChats,
@@ -217,6 +225,10 @@ export async function getDashboardStats(user: AuthenticatedUser) {
     aiChats,
     closedToday,
     agentsOnline,
+    totalChats,
+    resolvedChats,
+    totalAgents,
+    currentMonthChats,
   ] = await Promise.all([
     prisma.chatSession.count({
       where: {
@@ -253,6 +265,22 @@ export async function getDashboardStats(user: AuthenticatedUser) {
           },
         })
       : Promise.resolve(0),
+    prisma.chatSession.count({ where: access }),
+    prisma.chatSession.count({
+      where: { ...access, status: SESSION_STATUS.CLOSED },
+    }),
+    isAdmin(user)
+      ? prisma.user.count({
+          where: {
+            userType: "STAFF",
+            isActive: true,
+            userRoles: { some: { role: { name: "AGENT" } } },
+          },
+        })
+      : Promise.resolve(0),
+    prisma.chatSession.count({
+      where: { ...access, createdAt: { gte: monthStart } },
+    }),
   ]);
 
   return {
@@ -262,5 +290,9 @@ export async function getDashboardStats(user: AuthenticatedUser) {
     aiChats,
     closedToday,
     agentsOnline,
+    totalChats,
+    resolvedChats,
+    totalAgents,
+    currentMonthChats,
   };
 }

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { DashboardWelcome } from "@/components/admin/dashboard/DashboardWelcome";
 import {
+  OverviewStatsGridServer,
   StatsGridServer,
   RecentChatsServer,
 } from "@/components/admin/dashboard/DashboardData";
@@ -32,6 +33,9 @@ export default function DashboardPage() {
 
       <Suspense fallback={<StatsSkeleton />}>
         <StatsGridServer />
+      </Suspense>
+      <Suspense fallback={<StatsSkeleton />}>
+        <OverviewStatsGridServer />
       </Suspense>
       <Suspense fallback={<TableSkeleton />}>
         <RecentChatsServer />

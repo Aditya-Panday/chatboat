@@ -1,10 +1,16 @@
-import type { ChatFilterTab, ChatMessage, Conversation } from "@/lib/admin/chats-data";
+import type {
+  ChatFilterTab,
+  ChatMessage,
+  Conversation,
+  SessionStatus,
+} from "@/lib/admin/chats-data";
 import {
   avatarClassForName,
   customerInitials,
   formatChatTime,
 } from "@/lib/admin/format-time";
 import { mapStatusLabel } from "@/lib/chat/domain";
+import type { ChatSessionStatus } from "@prisma/client";
 
 type ApiListResponse<T> = {
   success: true;
@@ -37,6 +43,7 @@ export function mapConversationRow(row: {
   id: string;
   subject: string | null;
   status: string;
+  statusLabel?: string;
   preview?: string | null;
   lastMessageAt?: string | Date | null;
   startedAt: string | Date;
@@ -44,10 +51,14 @@ export function mapConversationRow(row: {
   currentAgent?: { name: string } | null;
 }): Conversation {
   const customerName = row.customer?.name ?? "Guest";
-  const status =
-    row.status === "CLOSED"
+  const sessionStatus = row.status as SessionStatus;
+  const statusLabel =
+    row.statusLabel ??
+    mapStatusLabel(row.status as ChatSessionStatus);
+  const inboxStatus =
+    sessionStatus === "CLOSED"
       ? ("resolved" as const)
-      : row.status === "WAITING_FOR_AGENT"
+      : sessionStatus === "WAITING_FOR_AGENT"
         ? ("unassigned" as const)
         : ("open" as const);
 
@@ -57,13 +68,15 @@ export function mapConversationRow(row: {
       name: customerName,
       initials: customerInitials(customerName),
       avatarClassName: avatarClassForName(customerName),
-      status: "online",
+      status: sessionStatus === "CLOSED" ? "offline" : "online",
       source: row.customer?.email ?? "Web Widget",
     },
     preview: row.preview ?? row.subject ?? "New Conversation",
     time: formatChatTime(row.lastMessageAt ?? row.startedAt),
     unreadCount: 0,
-    status,
+    status: inboxStatus,
+    sessionStatus,
+    statusLabel,
   };
 }
 

@@ -1,12 +1,14 @@
 "use client";
 
 type CloseConfirmDialogProps = {
+  chatStarted: boolean;
   onCloseChat: () => void;
   onEndChat: () => void;
   onCancel: () => void;
 };
 
 export function CloseConfirmDialog({
+  chatStarted,
   onCloseChat,
   onEndChat,
   onCancel,
@@ -23,11 +25,12 @@ export function CloseConfirmDialog({
           id="close-chat-title"
           className="text-[15px] font-semibold text-slate-900"
         >
-          What would you like to do?
+          {chatStarted ? "What would you like to do?" : "Close chat?"}
         </h3>
         <p className="mt-1.5 text-[13px] leading-5 text-slate-500">
-          Close Chat keeps your conversation. End Chat starts fresh from the
-          welcome screen.
+          {chatStarted
+            ? "Close Chat keeps your conversation. End Chat starts fresh from the welcome screen."
+            : "You can reopen the chat anytime from the launcher."}
         </p>
         <div className="mt-4 flex flex-col gap-2.5">
           <button
@@ -37,13 +40,15 @@ export function CloseConfirmDialog({
           >
             Close Chat
           </button>
-          <button
-            type="button"
-            onClick={onEndChat}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--covers-blue)]"
-          >
-            End Chat
-          </button>
+          {chatStarted ? (
+            <button
+              type="button"
+              onClick={onEndChat}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--covers-blue)]"
+            >
+              End Chat
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onCancel}

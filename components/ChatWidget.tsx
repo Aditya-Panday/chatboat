@@ -3,7 +3,6 @@
 import { ChatLauncher } from "@/components/ChatLauncher";
 import { ChatWindow } from "@/components/ChatWindow";
 import { CloseConfirmDialog } from "@/components/CloseConfirmDialog";
-import { GuestIdentityForm } from "@/components/GuestIdentityForm";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import {
   emitWidgetEvent,
@@ -21,7 +20,6 @@ import {
 } from "@/lib/context";
 import {
   getStoredGuestIdentity,
-  storeGuestIdentity,
 } from "@/lib/guest-identity";
 import { requestAgentHandoff } from "@/lib/handoff";
 import type { ChatSessionStatus } from "@prisma/client";
@@ -47,12 +45,7 @@ import { getOrCreateVisitorId } from "@/lib/visitor";
 import type { QuickActionId } from "@/components/QuickActions";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const QUICK_ACTION_MESSAGES: Record<QuickActionId, string> = {
-  new_order:
-    "I'd like help with a new order — finding the right cover, fabric, or size.",
-  existing_order:
-    "I need help with an existing Covers&All order (shipping, returns, or changes).",
-};
+const AI_GREETING = "I'm here to help! What do you need assistance with?";
 
 const DEFAULT_VIEWPORT: HostViewport = {
   width: 450,
@@ -152,10 +145,7 @@ export function ChatWidget({
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
   const [isSessionClosed, setIsSessionClosed] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
-  const [needsIdentity, setNeedsIdentity] = useState(false);
-  const [guestName, setGuestName] = useState("");
-  const [guestEmail, setGuestEmail] = useState("");
-  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [hasChatStarted, setHasChatStarted] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [loggedInCustomer, setLoggedInCustomer] = useState<{
     id: string;
@@ -180,6 +170,8 @@ export function ChatWidget({
     setMessages(session.messages.map(mapServerMessageToUi));
     if (session.messages.length > 0) {
       setView("chat");
+      chatStartedRef.current = true;
+      setHasChatStarted(true);
     }
     setSessionReady(true);
   }, []);
@@ -193,27 +185,10 @@ export function ChatWidget({
         return session;
       }
 
-      const customer = loggedInCustomerRef.current;
-      if (customer) {
-        setNeedsIdentity(false);
-      }
-
-      const stored = getStoredGuestIdentity();
-      if (stored) {
-        setGuestName(stored.name);
-        setGuestEmail(stored.email);
-        setNeedsIdentity(false);
-      } else {
-        setNeedsIdentity(true);
-      }
-
       setSessionReady(true);
       return null;
     } catch {
       setSessionReady(true);
-      if (!loggedInCustomerRef.current) {
-        setNeedsIdentity(true);
-      }
       return null;
     } finally {
       setIsBootstrapping(false);
@@ -277,28 +252,16 @@ export function ChatWidget({
     }
 
     const stored = getStoredGuestIdentity();
-    const guest =
-      stored ??
-      (guestName.trim() && guestEmail.trim()
-        ? { name: guestName.trim(), email: guestEmail.trim() }
-        : null);
-
-    if (!guest) {
-      setNeedsIdentity(true);
-      throw new Error("Guest identity required.");
-    }
-
-    storeGuestIdentity(guest);
-    setNeedsIdentity(false);
+    const vid = visitorId || getOrCreateVisitorId();
 
     const result = await startWidgetSession({
-      visitorId: visitorId || getOrCreateVisitorId(),
-      guest,
+      visitorId: vid,
+      ...(stored ? { guest: stored } : {}),
     });
 
     applySession(result.session);
     return result.session.id;
-  }, [applySession, guestEmail, guestName, isSessionClosed, visitorId]);
+  }, [applySession, isSessionClosed, visitorId]);
 
   const reportOpenState = useCallback(
     (open: boolean) => {
@@ -336,6 +299,7 @@ export function ChatWidget({
     sessionIdRef.current = null;
     sendingRef.current = false;
     chatStartedRef.current = false;
+    setHasChatStarted(false);
     emitWidgetEvent("chat_ended", { timestamp: Date.now() });
   }, []);
 
@@ -346,11 +310,13 @@ export function ChatWidget({
     setError(null);
     setDraft("");
     setResolutionDismissed(false);
+    setChatFlow(null);
     sessionIdRef.current = null;
     setSessionId(null);
     setSessionStatus(null);
     setView("welcome");
-    setNeedsIdentity(!loggedInCustomerRef.current && !getStoredGuestIdentity());
+    chatStartedRef.current = false;
+    setHasChatStarted(false);
   }, []);
 
   const initiateChat = useCallback(() => {
@@ -362,6 +328,7 @@ export function ChatWidget({
     (source: "user" | "api", flow?: ChatFlow) => {
       if (chatStartedRef.current) return;
       chatStartedRef.current = true;
+      setHasChatStarted(true);
       emitWidgetEvent("chat_started", {
         source,
         flow: flow ?? undefined,
@@ -380,7 +347,6 @@ export function ChatWidget({
           if (message.payload.customer) {
             loggedInCustomerRef.current = message.payload.customer;
             setLoggedInCustomer(message.payload.customer);
-            setNeedsIdentity(false);
           }
           setContext((current) =>
             mergeContext(current, {
@@ -487,11 +453,14 @@ export function ChatWidget({
 
       try {
         await ensureActiveSession();
-      } catch {
+      } catch (err) {
         sendingRef.current = false;
         setIsSending(false);
-        setNeedsIdentity(true);
-        setIdentityError("Please enter your name and email to continue.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to start chat. Please try again.",
+        );
         return;
       }
 
@@ -697,9 +666,12 @@ export function ChatWidget({
 
     try {
       await ensureActiveSession();
-    } catch {
-      setIdentityError("Please enter your name and email first.");
-      setNeedsIdentity(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to request an agent. Please try again.",
+      );
       return;
     }
 
@@ -717,24 +689,14 @@ export function ChatWidget({
     }
   }
 
-  async function handleGuestIdentitySubmit() {
-    setIdentityError(null);
-    const name = guestName.trim();
-    const email = guestEmail.trim();
-
-    if (name.length < 2 || !email.includes("@")) {
-      setIdentityError("Enter a valid name and email.");
-      return;
-    }
-
-    storeGuestIdentity({ name, email });
-    setNeedsIdentity(false);
-    setView("welcome");
-  }
-
   function handleQuickAction(id: QuickActionId) {
     setChatFlow(id);
-    void sendMessage(QUICK_ACTION_MESSAGES[id], { source: "user", flow: id });
+    setView("chat");
+    setIsOpen(true);
+    markChatStarted("user", id);
+    setMessages((current) =>
+      appendUniqueMessage(current, createMessage("assistant", AI_GREETING)),
+    );
   }
 
   function handleCloseRequest() {
@@ -746,10 +708,6 @@ export function ChatWidget({
   }
 
   const isMobile = viewport.isMobile;
-  const hasStoredIdentity =
-    Boolean(getStoredGuestIdentity()) || Boolean(loggedInCustomer);
-  const showIdentityForm =
-    needsIdentity && !hasStoredIdentity && !isSessionClosed && sessionReady;
 
   const lastMessage = messages[messages.length - 1];
   const showResolutionPrompt =
@@ -787,25 +745,10 @@ export function ChatWidget({
               <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
                 Loading chat…
               </div>
-            ) : showIdentityForm ? (
-              <GuestIdentityForm
-                name={guestName}
-                email={guestEmail}
-                error={identityError}
-                disabled={isSending}
-                onNameChange={setGuestName}
-                onEmailChange={setGuestEmail}
-                onSubmit={() => void handleGuestIdentitySubmit()}
-                onCloseRequest={handleCloseRequest}
-              />
             ) : view === "welcome" && !isSessionClosed ? (
               <WelcomeScreen
-                draft={draft}
-                disabled={isSending}
                 greetingTitle={welcomeGreeting?.greetingTitle}
                 greetingSubtitle={welcomeGreeting?.greetingSubtitle}
-                onDraftChange={setDraft}
-                onSubmit={() => void sendMessage(draft, { source: "user" })}
                 onQuickAction={handleQuickAction}
                 onCloseRequest={handleCloseRequest}
               />
@@ -836,6 +779,7 @@ export function ChatWidget({
 
             {showCloseConfirm ? (
               <CloseConfirmDialog
+                chatStarted={hasChatStarted}
                 onCloseChat={closeChat}
                 onEndChat={handleEndChatFromDialog}
                 onCancel={() => setShowCloseConfirm(false)}

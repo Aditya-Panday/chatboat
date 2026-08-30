@@ -44,6 +44,26 @@ type GuestIdentity = {
   email: string;
 };
 
+export function buildVisitorGuestEmail(visitorId: string) {
+  return `${visitorId}@guest.coversandall.com`;
+}
+
+/** Anonymous widget visitor — one stable guest account per visitorId. */
+export async function getOrCreateVisitorCustomer(visitorId: string) {
+  const email = normalizeEmail(buildVisitorGuestEmail(visitorId));
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return existing;
+
+  return prisma.user.create({
+    data: {
+      name: "Guest",
+      email,
+      userType: "CUSTOMER",
+      isActive: true,
+    },
+  });
+}
+
 async function upsertGuestCustomer(identity: GuestIdentity) {
   const email = normalizeEmail(identity.email);
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -174,13 +194,8 @@ export async function resumeOrCreateSession(
   }
 
   if (!customerId && input.visitorId) {
-    const byVisitor = await prisma.user.findFirst({
-      where: {
-        email: { contains: input.visitorId, mode: "insensitive" },
-        userType: "CUSTOMER",
-      },
-    });
-    if (byVisitor) customerId = byVisitor.id;
+    const customer = await getOrCreateVisitorCustomer(input.visitorId);
+    customerId = customer.id;
   }
 
   if (customerId) {
@@ -225,7 +240,9 @@ export async function closeSession(params: {
   closedById?: string | null;
   closeReason: string;
   actorType: "CUSTOMER" | "AGENT" | "ADMIN" | "AI" | "SYSTEM";
-  eventType: typeof SESSION_EVENT.AGENT_CLOSED | typeof SESSION_EVENT.CUSTOMER_CLOSED;
+  eventType:
+    | typeof SESSION_EVENT.AGENT_CLOSED
+    | typeof SESSION_EVENT.CUSTOMER_CLOSED;
 }) {
   const result = await prisma.$transaction(async (tx) => {
     const session = await tx.chatSession.findUnique({
